@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 import torch
 from .equation_processor import equation_processor
+import json
+from datetime import datetime
 
 class PhysicsRAGSystem:
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
@@ -33,6 +35,12 @@ class PhysicsRAGSystem:
         
         self.equation_collection = self.chroma_client.get_or_create_collection(
             name="physics_equations",
+            metadata={"hnsw:space": "cosine"}
+        )
+        
+        # Add conversation history collection
+        self.conversation_collection = self.chroma_client.get_or_create_collection(
+            name="conversation_history",
             metadata={"hnsw:space": "cosine"}
         )
         
@@ -158,7 +166,7 @@ class PhysicsRAGSystem:
         Check if text contains mathematical equations.
         """
         # Look for common equation indicators
-        equation_indicators = ['=', '∫', '∑', '∏', '∇', '∂', '→', '←', '↑', '↓']
+        equation_indicators = ['=', '∫', '∑', '∏', '∇', '∂']
         return any(indicator in text for indicator in equation_indicators)
     
     def _extract_equations(self, text: str) -> List[str]:
@@ -180,6 +188,89 @@ class PhysicsRAGSystem:
             equations.append('\n'.join(current_eq))
         
         return equations
+
+    def add_to_conversation_history(self, chat_id: str, user_message: str, assistant_response: str):
+        """
+        Add a conversation turn to the history.
+        
+        Args:
+            chat_id: Unique identifier for the chat session
+            user_message: The user's message
+            assistant_response: The assistant's response
+        """
+        timestamp = datetime.now().isoformat()
+        conversation_turn = {
+            "user_message": user_message,
+            "assistant_response": assistant_response,
+            "timestamp": timestamp
+        }
+        
+        # Get existing conversation or create new one
+        try:
+            existing = self.conversation_collection.get(
+                where={"chat_id": chat_id},
+                include=["documents", "metadatas"]
+            )
+            if existing["documents"]:
+                # Update existing conversation
+                history = json.loads(existing["documents"][0])
+                history.append(conversation_turn)
+                self.conversation_collection.update(
+                    ids=[existing["ids"][0]],
+                    documents=[json.dumps(history)],
+                    metadatas=[{"chat_id": chat_id, "last_updated": timestamp}]
+                )
+            else:
+                # Create new conversation
+                self.conversation_collection.add(
+                    documents=[json.dumps([conversation_turn])],
+                    metadatas=[{"chat_id": chat_id, "last_updated": timestamp}],
+                    ids=[chat_id]
+                )
+        except Exception as e:
+            # If no existing conversation, create new one
+            self.conversation_collection.add(
+                documents=[json.dumps([conversation_turn])],
+                metadatas=[{"chat_id": chat_id, "last_updated": timestamp}],
+                ids=[chat_id]
+            )
+
+    def get_conversation_history(self, chat_id: str, limit: int = 10) -> List[Dict[str, str]]:
+        """
+        Retrieve conversation history for a specific chat.
+        
+        Args:
+            chat_id: Unique identifier for the chat session
+            limit: Maximum number of conversation turns to return
+            
+        Returns:
+            List of conversation turns, each containing user_message and assistant_response
+        """
+        try:
+            results = self.conversation_collection.get(
+                where={"chat_id": chat_id},
+                include=["documents"]
+            )
+            if results["documents"]:
+                history = json.loads(results["documents"][0])
+                return history[-limit:]  # Return the most recent turns
+            return []
+        except Exception:
+            return []
+
+    def clear_conversation_history(self, chat_id: str):
+        """
+        Clear conversation history for a specific chat.
+        
+        Args:
+            chat_id: Unique identifier for the chat session
+        """
+        try:
+            self.conversation_collection.delete(
+                where={"chat_id": chat_id}
+            )
+        except Exception:
+            pass  # Ignore if chat doesn't exist
 
 # Create a singleton instance
 physics_rag = PhysicsRAGSystem() 
