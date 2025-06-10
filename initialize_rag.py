@@ -1,0 +1,43 @@
+from utils.rag_system import physics_rag
+import os
+from pathlib import Path
+
+def initialize_rag_system():
+    """
+    Initialize the RAG system by processing all physics textbooks.
+    """
+    # Create textbooks directory if it doesn't exist
+    textbooks_dir = Path("textbooks")
+    textbooks_dir.mkdir(exist_ok=True)
+    
+    # Dictionary mapping textbook IDs to their expected filenames
+    textbook_files = {
+        "openstax_vol1": "openstax-university-physics-vol1.pdf",
+        "openstax_vol2": "openstax-university-physics-vol2.pdf",
+        "openstax_vol3": "openstax-university-physics-vol3.pdf",
+        "griffiths_qm": "griffiths-quantum-mechanics.pdf",
+        "griffiths_em": "griffiths-electrodynamics.pdf",
+        "taylor_cm": "taylor-classical-mechanics.pdf"
+    }
+    
+    print("Initializing RAG system with physics textbooks...")
+    
+    for textbook_id, filename in textbook_files.items():
+        file_path = textbooks_dir / filename
+        if file_path.exists():
+            print(f"Processing {filename}...")
+            try:
+                physics_rag.process_textbook(str(file_path), textbook_id)
+                print(f"Successfully processed {filename}")
+            except Exception as e:
+                print(f"Error processing {filename}: {str(e)}")
+        else:
+            print(f"Warning: {filename} not found in textbooks directory")
+    
+    print("\nRAG system initialization complete!")
+    print("\nPlease ensure you have the following PDF files in the 'textbooks' directory:")
+    for filename in textbook_files.values():
+        print(f"- {filename}")
+
+if __name__ == "__main__":
+    initialize_rag_system() 
