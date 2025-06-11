@@ -23,7 +23,7 @@ class EquationProcessor:
             'derivative': ['d/dx', '∂/∂x', '∇'],
             'integral': ['∫', '∮', '∬', '∭'],
             'sum': ['∑', '∏'],
-            'vector': ['→', '←', '↑', '↓']
+            'vector': ['→']
         }
     
     def process_equation_image(self, image_data: bytes) -> Tuple[str, Dict[str, Any]]:
