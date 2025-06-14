@@ -3,7 +3,7 @@ import chromadb
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader
 import os
 from pathlib import Path
 import torch
@@ -46,12 +46,12 @@ class PhysicsRAGSystem:
         
         # Textbook metadata
         self.textbooks = {
-            "openstax_vol1": "OpenStax University Physics Volume 1",
-            "openstax_vol2": "OpenStax University Physics Volume 2",
-            "openstax_vol3": "OpenStax University Physics Volume 3",
-            "griffiths_qm": "Griffiths Introduction to Quantum Mechanics",
-            "griffiths_em": "Griffiths Introduction to Electrodynamics",
-            "taylor_cm": "Taylor Classical Mechanics"
+            "openstax_vol1": "UniversityPhysicsVol1.pdf",
+            "openstax_vol2": "UniversityPhysicsVol2.pdf",
+            "openstax_vol3": "UniversityPhysicsVol3.pdf",
+            "griffiths_qm": "IntroductionToQM.pdf",
+            "griffiths_em": "IntroductionToElectrodynamics.pdf",
+            "taylor_cm": "ClassicalMechanics.pdf"
         }
     
     def process_textbook(self, pdf_path: str, textbook_id: str):
@@ -136,10 +136,6 @@ class PhysicsRAGSystem:
             results = self.equation_collection.query(
                 query_embeddings=[query_embedding],
                 n_results=n_results,
-                where={
-                    "type": metadata["type"],
-                    "complexity": {"$lte": metadata["complexity"] + 2}
-                },
                 include=["documents", "metadatas", "distances"]
             )
         else:
