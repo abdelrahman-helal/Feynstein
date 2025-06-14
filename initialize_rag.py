@@ -8,16 +8,15 @@ def initialize_rag_system():
     """
     # Create textbooks directory if it doesn't exist
     textbooks_dir = Path("textbooks")
-    textbooks_dir.mkdir(exist_ok=True)
     
     # Dictionary mapping textbook IDs to their expected filenames
     textbook_files = {
-        "openstax_vol1": "openstax-university-physics-vol1.pdf",
-        "openstax_vol2": "openstax-university-physics-vol2.pdf",
-        "openstax_vol3": "openstax-university-physics-vol3.pdf",
-        "griffiths_qm": "griffiths-quantum-mechanics.pdf",
-        "griffiths_em": "griffiths-electrodynamics.pdf",
-        "taylor_cm": "taylor-classical-mechanics.pdf"
+        "openstax_vol1": "UniversityPhysicsVol1.pdf",
+        "openstax_vol2": "UniversityPhysicsVol2.pdf",
+        "openstax_vol3": "UniversityPhysicsVol3.pdf",
+        "griffiths_qm": "IntroductionToQM.pdf",
+        "griffiths_em": "IntroductionToElectrodynamics.pdf",
+        "taylor_cm": "ClassicalMechanics.pdf"
     }
     
     print("Initializing RAG system with physics textbooks...")
