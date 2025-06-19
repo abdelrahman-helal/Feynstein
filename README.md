@@ -12,24 +12,18 @@ An intelligent physics tutoring system that helps students understand physics co
 
 ## Setup
 
-1. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-2. Install dependencies:
+1. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Set up environment variables:
+2. Set up environment variables:
 Create a `.env` file with your API keys:
 ```
 OPENAI_API_KEY=your_api_key_here
 ```
 
-4. Run the application:
+3. Run the application:
 ```bash
 python app.py
 ```
