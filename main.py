@@ -1,11 +1,12 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from models import db, Chat, Message
-from utils.rag_system import physics_rag
-from utils.model_handler import physics_tutor
+from utils.langchain_rag_system import langchain_rag
+from utils.langchain_model_handler import feynstein_model
 import base64
 from huggingface_hub import InferenceClient
 import os
+import uuid
 
 main = Blueprint('main', __name__)
 
@@ -92,6 +93,9 @@ def process_question():
     else:
         chat = Chat.query.filter_by(id=chat_id, user_id=current_user.id).first_or_404()
     
+    # Generate thread ID for this chat (using chat_id for consistency)
+    thread_id = f"user_{current_user.id}_chat_{chat_id}"
+    
     # Save user message
     user_message = Message(
         chat_id=chat_id,
@@ -102,9 +106,14 @@ def process_question():
     db.session.add(user_message)
     
     if question_type == 'text':
-        # Process text-based question
-        context = physics_rag.query_relevant_content(query=content)
-        response = physics_tutor.generate_step_by_step_guide(question=content, context=context)
+        # Process text-based question with RAG
+        context = langchain_rag.query_relevant_content(query=content)
+        response = feynstein_model.generate_response(
+            question=content,
+            thread_id=thread_id,
+            context=context,
+            question_type=question_type
+        )
         
     elif question_type == 'image':
         try:
@@ -141,12 +150,14 @@ def process_question():
             combined_query = f"Extracted equation: {extracted_equation}"
             
             # Query relevant content using the combined information
-            context = physics_rag.query_relevant_content(combined_query)
+            context = langchain_rag.query_relevant_content(combined_query)
 
             # Generate response with both the image description and the extracted equation
-            response = physics_tutor.generate_step_by_step_guide(
+            response = feynstein_model.generate_response(
                 question=f"Please help me understand this physics problem: {combined_query}",
-                context=context
+                thread_id=thread_id,
+                context=context,
+                question_type=question_type
             )
             
         except Exception as e:
@@ -174,7 +185,8 @@ def process_question():
         'chat_id': chat_id,
         'response': response,
         'user_message_id': user_message.id,
-        'assistant_message_id': assistant_message.id
+        'assistant_message_id': assistant_message.id,
+        'thread_id': thread_id
     })
 
 @main.route('/next_step', methods=['POST'])
@@ -190,6 +202,9 @@ def next_step():
     
     chat = Chat.query.filter_by(id=chat_id, user_id=current_user.id).first_or_404()
     
+    # Generate thread ID for this chat
+    thread_id = f"user_{current_user.id}_chat_{chat_id}"
+    
     # Save user response
     user_message = Message(
         chat_id=chat_id,
@@ -198,10 +213,12 @@ def next_step():
     )
     db.session.add(user_message)
     
-    # Generate next step based on student's response
-    response = physics_tutor.generate_step_by_step_guide(
-        current_step=current_step,
-        student_response=student_response
+    # Generate next step based on student's response using LangChain model
+    response = feynstein_model.generate_response(
+        question=student_response,
+        thread_id=thread_id,
+        context="",  # No additional context for follow-up responses
+        question_type="text"
     )
     
     # Save assistant response
@@ -219,5 +236,6 @@ def next_step():
     return jsonify({
         'response': response,
         'user_message_id': user_message.id,
-        'assistant_message_id': assistant_message.id
+        'assistant_message_id': assistant_message.id,
+        'thread_id': thread_id
     }) 

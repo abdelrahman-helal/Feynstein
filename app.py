@@ -5,8 +5,7 @@ from flask_login import LoginManager
 from models import db, User
 from auth import auth
 from main import main
-from utils.initialize_rag import initialize_rag_system
-from utils.rag_system import physics_rag
+from utils.langchain_rag_system import langchain_rag
 
 # Load environment variables
 load_dotenv()
@@ -31,14 +30,18 @@ def create_app():
     
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        return db.session.get(User, int(user_id))
     
     # Register blueprints
     app.register_blueprint(auth, url_prefix='/auth')
     app.register_blueprint(main)
     
-    # Initialize RAG system
-    initialize_rag_system(physics_rag)
+    # Initialize LangChain RAG system
+    with app.app_context():
+        # Try to load existing vector database
+        if not langchain_rag.load_vector_db():
+            print("No existing vector database found. Please run 'python process_textbooks.py' to create one.")
+            print("The app will work without RAG functionality until the vector database is created.")
     
     return app
 
