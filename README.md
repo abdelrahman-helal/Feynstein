@@ -15,12 +15,17 @@ An AI-powered physics tutoring application with authentication, chat history, an
 
 ## Setup Instructions
 
+<<<<<<< HEAD
 ### 1. Install Dependencies
 
+=======
+1. Install dependencies:
+>>>>>>> 36a8783c11a3952f176f678a5f51126f38b88d91
 ```bash
 pip install -r requirements.txt
 ```
 
+<<<<<<< HEAD
 ### 2. Environment Variables
 
 Create a `.env` file in the root directory with the following variables:
@@ -64,6 +69,15 @@ This will:
 
 ### 5. Run the Application
 
+=======
+2. Set up environment variables:
+Create a `.env` file with your API keys:
+```
+OPENAI_API_KEY=your_api_key_here
+```
+
+3. Run the application:
+>>>>>>> 36a8783c11a3952f176f678a5f51126f38b88d91
 ```bash
 python app.py
 ```
@@ -193,14 +207,4 @@ Feynstein/
 - Processes uploaded equation images
 - Extracts text representations for further processing
 
-## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License. 
