@@ -1,84 +1,58 @@
 import os
-import base64
 from dotenv import load_dotenv
-from utils.model_handler import physics_tutor
-from utils.rag_system import PhysicsRAGSystem
-from utils.equation_processor import EquationProcessor
-from flask import Flask, render_template, request, jsonify
+from flask import Flask
+from flask_login import LoginManager
+from models import db, User
+from auth import auth
+from main import main
+from utils.initialize_rag import initialize_rag_system
+from utils.rag_system import physics_rag
 
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
-equation_processor = EquationProcessor()  # Create an instance
-physics_rag = PhysicsRAGSystem()
-
-@app.route('/')
-def home():
-    return render_template('index.html')
-
-@app.route('/process_question', methods=['POST'])
-def process_question():
-    data = request.json
-    question_type = data.get('type')  # 'text' or 'image'
-    content = data.get('content')
+def create_app():
+    app = Flask(__name__)
     
-    if question_type == 'text':
-        # Process text-based question
-        context = physics_rag.query_relevant_content(query=content)
-        response = physics_tutor.generate_step_by_step_guide(question=content, context=context)
-        return jsonify(response)
+    # Configuration
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///physics_tutor.db'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
-    elif question_type == 'image':
-        try:
-            # Process image-based question
-            image_base64 = content
-            # Remove the data URL prefix if present
-            if image_base64.startswith('data:image'):
-                image_base64 = image_base64.split(',', 1)[1]
-            
-            # Decode base64 to bytes
-            image_bytes = base64.b64decode(image_base64)
-            
-            # Process the image using the instance
-            equation, metadata = equation_processor.process_equation_image(image_bytes)
-            context = PhysicsRAGSystem.query_relevant_content(equation)
-
-            # Generate response with both the image and the extracted equation
-            response = physics_tutor.generate_step_by_step_guide(
-                question=f"Please help me understand this equation: {equation}",
-                image_bytes=image_bytes,
-                context=context
-            )
-            return jsonify(response)
-        except Exception as e:
-            print(f"Error processing image: {str(e)}")
-            return jsonify({
-                "error": "Failed to process image",
-                "details": str(e)
-            }), 400
+    # Initialize extensions
+    db.init_app(app)
     
-    return jsonify({'error': 'Invalid question type'}), 400
+    # Initialize Flask-Login
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    login_manager.login_message = 'Please log in to access this page.'
+    login_manager.login_message_category = 'info'
+    
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.query.get(int(user_id))
+    
+    # Register blueprints
+    app.register_blueprint(auth, url_prefix='/auth')
+    app.register_blueprint(main)
+    
+    # Initialize RAG system
+    initialize_rag_system(physics_rag)
+    
+    return app
 
-@app.route('/next_step', methods=['POST'])
-def next_step():
-    data = request.json
-    # question = data.get('question')
-    current_step = data.get('current_step', 0)
-    student_response = data.get('response')
-    image_base64 = data.get('image')  # Optionally support image in next steps
-    image_bytes = None
-    if image_base64:
-        if image_base64.startswith('data:image'):
-            image_base64 = image_base64.split(',', 1)[1]
-        image_bytes = base64.b64decode(image_base64)
-    # Generate next step based on student's response
-    response = physics_tutor.generate_step_by_step_guide(
-        current_step=current_step,
-        student_response=student_response,
-        image_bytes=image_bytes
-    )
-    return jsonify(response)
+def init_db():
+    """Initialize the database with tables"""
+    with create_app().app_context():
+        db.create_all()
+        print("Database tables created successfully!")
 
 if __name__ == '__main__':
+    app = create_app()
+    
+    # Create database tables if they don't exist
+    with app.app_context():
+        db.create_all()
+    
     app.run(debug=True) 

@@ -145,7 +145,7 @@ class PhysicsRAGSystem:
                 n_results=n_results,
                 include=["documents", "metadatas", "distances"]
             )
-        
+        print(f'results: {results}')
         # Format results
         formatted_results = []
         for i in range(len(results["documents"][0])):

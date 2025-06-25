@@ -1,8 +1,7 @@
-from utils.rag_system import physics_rag
 import os
 from pathlib import Path
 
-def initialize_rag_system():
+def initialize_rag_system(rag_system):
     """
     Initialize the RAG system by processing all physics textbooks.
     """
@@ -26,7 +25,7 @@ def initialize_rag_system():
         if file_path.exists():
             print(f"Processing {filename}...")
             try:
-                physics_rag.process_textbook(str(file_path), textbook_id)
+                rag_system.process_textbook(str(file_path), textbook_id)
                 print(f"Successfully processed {filename}")
             except Exception as e:
                 print(f"Error processing {filename}: {str(e)}")

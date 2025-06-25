@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feynstein - Chat</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body class="bg-gray-50 h-screen flex">
+    <!-- Sidebar -->
+    <div class="w-80 bg-gray-900 text-white flex flex-col">
+        <!-- Header -->
+        <div class="p-4 border-b border-gray-700">
+            <div class="flex items-center justify-between">
+                <h1 class="text-xl font-bold">Feynstein</h1>
+                <button id="newChatBtn" class="p-2 hover:bg-gray-700 rounded-lg transition">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- User Info -->
+        <div class="p-4 border-b border-gray-700">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                    <i class="fas fa-user text-sm"></i>
+                </div>
+                <div class="flex-1">
+                    <p class="font-medium">{{ current_user.username }}</p>
+                    <p class="text-sm text-gray-400">{{ current_user.email }}</p>
+                </div>
+                <a href="{{ url_for('auth.logout') }}" class="p-2 hover:bg-gray-700 rounded-lg transition" title="Logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Chat History -->
+        <div class="flex-1 overflow-y-auto">
+            <div id="chatList" class="p-2">
+                <!-- Chat items will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="flex-1 flex flex-col">
+        <!-- Chat Header -->
+        <div class="bg-white border-b border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+                <h2 id="chatTitle" class="text-xl font-semibold text-gray-800">New Chat</h2>
+                <div class="flex space-x-2">
+                    <button id="deleteChatBtn" class="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition hidden">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Messages Area -->
+        <div id="messagesArea" class="flex-1 overflow-y-auto p-4 space-y-4">
+            <!-- Welcome message -->
+            <div class="text-center text-gray-500 mt-8">
+                <i class="fas fa-robot text-4xl mb-4"></i>
+                <h3 class="text-xl font-semibold mb-2">Welcome to Feynstein!</h3>
+                <p>Ask me any physics question or upload an image of an equation.</p>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="bg-white border-t border-gray-200 p-4">
+            <!-- Input Type Toggle -->
+            <div class="flex space-x-2 mb-4">
+                <button id="textBtn" class="flex-1 py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition">
+                    <i class="fas fa-keyboard mr-2"></i>Text
+                </button>
+                <button id="imageBtn" class="flex-1 py-2 px-4 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+                    <i class="fas fa-camera mr-2"></i>Image
+                </button>
+            </div>
+
+            <!-- Text Input -->
+            <div id="textInput" class="mb-4">
+                <div class="flex space-x-2">
+                    <textarea id="questionText" 
+                              class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                              rows="3" 
+                              placeholder="Type your physics question here..."></textarea>
+                    <button id="submitBtn" class="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition self-end">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Image Input -->
+            <div id="imageInput" class="hidden mb-4">
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <input type="file" id="imageUpload" accept="image/*" class="hidden">
+                    <label for="imageUpload" class="cursor-pointer">
+                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                        <p class="text-gray-600">Click to upload an image of your equation</p>
+                    </label>
+                    <div id="imagePreview" class="mt-4 hidden">
+                        <img id="previewImg" class="max-h-32 mx-auto rounded" src="" alt="Preview">
+                        <button id="submitImageBtn" class="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">
+                            <i class="fas fa-paper-plane mr-2"></i>Submit
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentChatId = null;
+        let currentStep = 0;
+
+        // DOM Elements
+        const chatList = document.getElementById('chatList');
+        const messagesArea = document.getElementById('messagesArea');
+        const chatTitle = document.getElementById('chatTitle');
+        const deleteChatBtn = document.getElementById('deleteChatBtn');
+        const newChatBtn = document.getElementById('newChatBtn');
+        const textBtn = document.getElementById('textBtn');
+        const imageBtn = document.getElementById('imageBtn');
+        const textInput = document.getElementById('textInput');
+        const imageInput = document.getElementById('imageInput');
+        const questionText = document.getElementById('questionText');
+        const submitBtn = document.getElementById('submitBtn');
+        const imageUpload = document.getElementById('imageUpload');
+        const imagePreview = document.getElementById('imagePreview');
+        const previewImg = document.getElementById('previewImg');
+        const submitImageBtn = document.getElementById('submitImageBtn');
+
+        // Load chat history on page load
+        loadChatHistory();
+
+        // Event Listeners
+        newChatBtn.addEventListener('click', startNewChat);
+        deleteChatBtn.addEventListener('click', deleteCurrentChat);
+        textBtn.addEventListener('click', () => switchInputType('text'));
+        imageBtn.addEventListener('click', () => switchInputType('image'));
+        submitBtn.addEventListener('click', submitTextQuestion);
+        submitImageBtn.addEventListener('click', submitImageQuestion);
+        questionText.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submitTextQuestion();
+            }
+        });
+
+        imageUpload.addEventListener('change', handleImageUpload);
+
+        // Functions
+        function loadChatHistory() {
+            fetch('/chats')
+                .then(response => response.json())
+                .then(chats => {
+                    chatList.innerHTML = '';
+                    chats.forEach(chat => {
+                        const chatItem = createChatItem(chat);
+                        chatList.appendChild(chatItem);
+                    });
+                })
+                .catch(error => console.error('Error loading chats:', error));
+        }
+
+        function createChatItem(chat) {
+            const div = document.createElement('div');
+            div.className = 'p-3 hover:bg-gray-700 rounded-lg cursor-pointer transition';
+            div.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium truncate">${chat.title}</p>
+                        <p class="text-sm text-gray-400">${new Date(chat.updated_at).toLocaleDateString()}</p>
+                    </div>
+                    <span class="text-xs text-gray-500">${chat.message_count}</span>
+                </div>
+            `;
+            div.addEventListener('click', () => loadChat(chat.id));
+            return div;
+        }
+
+        function startNewChat() {
+            currentChatId = null;
+            currentStep = 0;
+            chatTitle.textContent = 'New Chat';
+            deleteChatBtn.classList.add('hidden');
+            messagesArea.innerHTML = `
+                <div class="text-center text-gray-500 mt-8">
+                    <i class="fas fa-robot text-4xl mb-4"></i>
+                    <h3 class="text-xl font-semibold mb-2">Welcome to Physics Tutor!</h3>
+                    <p>Ask me any physics question or upload an image of an equation.</p>
+                </div>
+            `;
+        }
+
+        function loadChat(chatId) {
+            fetch(`/chats/${chatId}`)
+                .then(response => response.json())
+                .then(chat => {
+                    currentChatId = chat.id;
+                    chatTitle.textContent = chat.title;
+                    deleteChatBtn.classList.remove('hidden');
+                    displayMessages(chat.messages);
+                })
+                .catch(error => console.error('Error loading chat:', error));
+        }
+
+        function displayMessages(messages) {
+            messagesArea.innerHTML = '';
+            messages.forEach(message => {
+                const messageElement = createMessageElement(message);
+                messagesArea.appendChild(messageElement);
+            });
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+            MathJax.typeset();
+        }
+
+        function createMessageElement(message) {
+            const div = document.createElement('div');
+            div.className = `flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`;
+            
+            const messageContent = document.createElement('div');
+            messageContent.className = `max-w-3xl p-4 rounded-lg ${
+                message.role === 'user' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-white border border-gray-200'
+            }`;
+            
+            // Process the content for formatting
+            let processedContent = message.content
+                // Convert ### heading: to <h3>Heading</h3>
+                .replace(/###\s*(.*?):/g, '<h3 class="text-xl font-semibold mt-4 mb-2">$1</h3>')
+                // Convert **text** or *text* to <b>text</b>
+                .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+                .replace(/\*(.*?)\*/g, '<b>$1</b>');
+            
+            messageContent.innerHTML = processedContent;
+            div.appendChild(messageContent);
+            return div;
+        }
+
+        function switchInputType(type) {
+            if (type === 'text') {
+                textBtn.classList.add('bg-blue-500', 'text-white');
+                textBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                imageBtn.classList.add('bg-gray-200', 'text-gray-700');
+                imageBtn.classList.remove('bg-blue-500', 'text-white');
+                textInput.classList.remove('hidden');
+                imageInput.classList.add('hidden');
+            } else {
+                imageBtn.classList.add('bg-blue-500', 'text-white');
+                imageBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                textBtn.classList.add('bg-gray-200', 'text-gray-700');
+                textBtn.classList.remove('bg-blue-500', 'text-white');
+                imageInput.classList.remove('hidden');
+                textInput.classList.add('hidden');
+            }
+        }
+
+        function submitTextQuestion() {
+            const content = questionText.value.trim();
+            if (!content) return;
+            
+            submitQuestion('text', content);
+            questionText.value = '';
+        }
+
+        function submitImageQuestion() {
+            const file = imageUpload.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                submitQuestion('image', e.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function submitQuestion(type, content) {
+            // Add user message to UI immediately
+            const userMessage = {
+                role: 'user',
+                content: type === 'image' ? '[Image uploaded]' : content
+            };
+            const userElement = createMessageElement(userMessage);
+            messagesArea.appendChild(userElement);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+
+            // Show loading message
+            const loadingMessage = {
+                role: 'assistant',
+                content: 'Thinking...'
+            };
+            const loadingElement = createMessageElement(loadingMessage);
+            messagesArea.appendChild(loadingElement);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+
+            // Send request
+            fetch('/process_question', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    type: type,
+                    content: content,
+                    chat_id: currentChatId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Remove loading message
+                messagesArea.removeChild(loadingElement);
+                
+                // Add assistant response
+                const assistantMessage = {
+                    role: 'assistant',
+                    content: data.response.explanation
+                };
+                const assistantElement = createMessageElement(assistantMessage);
+                messagesArea.appendChild(assistantElement);
+                messagesArea.scrollTop = messagesArea.scrollHeight;
+                
+                // Update current chat ID if it's a new chat
+                if (!currentChatId) {
+                    currentChatId = data.chat_id;
+                    chatTitle.textContent = content.substring(0, 50) + (content.length > 50 ? '...' : '');
+                    deleteChatBtn.classList.remove('hidden');
+                    loadChatHistory(); // Refresh chat list
+                }
+                
+                MathJax.typeset();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                messagesArea.removeChild(loadingElement);
+                const errorMessage = {
+                    role: 'assistant',
+                    content: 'Sorry, an error occurred while processing your question.'
+                };
+                const errorElement = createMessageElement(errorMessage);
+                messagesArea.appendChild(errorElement);
+                messagesArea.scrollTop = messagesArea.scrollHeight;
+            });
+        }
+
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    previewImg.src = e.target.result;
+                    imagePreview.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function deleteCurrentChat() {
+            if (!currentChatId) return;
+            
+            if (confirm('Are you sure you want to delete this chat?')) {
+                fetch(`/chats/${currentChatId}/delete`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    startNewChat();
+                    loadChatHistory();
+                })
+                .catch(error => console.error('Error deleting chat:', error));
+            }
+        }
+    </script>
+</body>
+</html> 

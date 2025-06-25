@@ -220,9 +220,13 @@
         function displayResponse(data) {
             responseSection.classList.remove('hidden');
             
-            // Process the explanation text to convert **text** to headings
+            // Process the explanation text to convert **text** to headings and *text* to h5
             let processedExplanation = data.explanation;
-            processedExplanation = processedExplanation.replace(/\*\*(.*?)\*\*/g, '<h3 class="text-xl font-semibold mt-4 mb-2">$1</h3>');
+            processedExplanation = processedExplanation
+                .replace(/(\d+)\.\*\*(.*?)\*\*/g, '<h3 class="text-xl font-semibold mt-4 mb-2">$1. $2</h3>')
+                .replace(/\*\*(.*?)\*\*/g, '<h3 class="text-xl font-semibold mt-4 mb-2">$1</h3>')
+                .replace(/(\d+)\.\*(.*?)\*/g, '<h5 class="text-lg font-medium mt-3 mb-1">$1. $2</h5>')
+                .replace(/\*(.*?)\*/g, '<h5 class="text-lg font-medium mt-3 mb-1">$1</h5>');
             explanation.innerHTML = processedExplanation;
             
             // Update steps
@@ -230,8 +234,12 @@
             data.next_steps.forEach((step, index) => {
                 const stepElement = document.createElement('div');
                 stepElement.className = 'p-4 bg-gray-50 rounded-lg';
-                // Process step text to convert **text** to bold
-                let processedStep = step.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                // Process step text to convert **text** to bold and *text* to h5
+                let processedStep = step
+                    .replace(/(\d+)\.\*\*(.*?)\*\*/g, '<h3 class="text-xl font-semibold mt-4 mb-2">$1. $2</h3>')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/(\d+)\.\*(.*?)\*/g, '<h5 class="text-lg font-medium mt-2 mb-1">$1. $2</h5>')
+                    .replace(/\*(.*?)\*/g, '<h5 class="text-lg font-medium mt-2 mb-1">$1</h5>');
                 stepElement.innerHTML = `<strong>Step ${index + 1}:</strong> ${processedStep}`;
                 steps.appendChild(stepElement);
             });
