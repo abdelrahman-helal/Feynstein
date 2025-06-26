@@ -35,6 +35,8 @@ env/
 physics_textbooks_db/
 textbooks/
 *.pdf
+chroma_db/
+textbooks_db/
 
 # Environment variables
 .env
