@@ -15,7 +15,13 @@ def create_app():
     
     # Configuration
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///physics_tutor.db'
+    
+    # Use environment variable for database URI in production
+    if os.getenv('DATABASE_URL'):
+        app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+    else:
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///physics_tutor.db'
+    
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     # Initialize extensions
@@ -36,12 +42,13 @@ def create_app():
     app.register_blueprint(auth, url_prefix='/auth')
     app.register_blueprint(main)
     
-    # Initialize LangChain RAG system
-    with app.app_context():
-        # Try to load existing vector database
-        if not langchain_rag.load_vector_db():
-            print("No existing vector database found. Please run 'python process_textbooks.py' to create one.")
-            print("The app will work without RAG functionality until the vector database is created.")
+    # Initialize LangChain RAG system (only in development)
+    if not os.getenv('VERCEL'):
+        with app.app_context():
+            # Try to load existing vector database
+            if not langchain_rag.load_vector_db():
+                print("No existing vector database found. Please run 'python process_textbooks.py' to create one.")
+                print("The app will work without RAG functionality until the vector database is created.")
     
     return app
 
@@ -51,11 +58,12 @@ def init_db():
         db.create_all()
         print("Database tables created successfully!")
 
+# Vercel handler
+app = create_app()
+
+# Create database tables if they don't exist
+with app.app_context():
+    db.create_all()
+
 if __name__ == '__main__':
-    app = create_app()
-    
-    # Create database tables if they don't exist
-    with app.app_context():
-        db.create_all()
-    
     app.run(debug=True) 
