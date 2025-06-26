@@ -4,15 +4,16 @@ from typing import List, Dict, Any, Optional
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
+from langchain_pinecone import PineconeVectorStore
+from pinecone import Pinecone
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 
 class LangChainRAGSystem:
-    def __init__(self, vector_db_path: str = "chroma_db"):
-        self.vector_db_path = vector_db_path
+    def __init__(self, index_name: str = "feynstein-db"):
+        self.index_name = index_name
         self.embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2",
             model_kwargs={'device': 'cpu'}
@@ -23,6 +24,11 @@ class LangChainRAGSystem:
             chunk_overlap=200,
             length_function=len,
         )
+        # Pinecone API key from environment
+        self.pinecone_api_key = os.getenv("pinecone_KEY")
+        if not self.pinecone_api_key:
+            raise ValueError("Pinecone API key not found in environment variable 'pinecone_KEY'.")
+        self.pinecone_client = Pinecone(api_key=self.pinecone_api_key)
     
     def load_textbooks(self, textbooks_dir: str = "textbooks") -> List[Document]:
         """Load all PDF textbooks from the specified directory"""
@@ -50,59 +56,49 @@ class LangChainRAGSystem:
         return documents
     
     def process_and_save_vector_db(self, textbooks_dir: str = "textbooks") -> None:
-        """Process textbooks and save vector database using Chroma"""
+        """Process textbooks and upload to Pinecone index"""
         print("Loading textbooks...")
         documents = self.load_textbooks(textbooks_dir)
-        
         if not documents:
             print("No documents found to process!")
             return
-        
         print(f"Processing {len(documents)} documents...")
-        
-        # Split documents into chunks
         print("Splitting documents into chunks...")
         chunks = self.text_splitter.split_documents(documents)
         print(f"Created {len(chunks)} chunks")
-        
-        # Create vector store with Chroma
-        print("Creating Chroma vector store...")
-        self.vector_store = Chroma.from_documents(
-            documents=chunks,
-            embedding=self.embeddings,
-            persist_directory=self.vector_db_path
-        )
-        
-        # Persist the vector store
-        print("Persisting vector store...")
-        self.vector_store.persist()
-        
-        print("Vector database processing complete!")
-        print(f"Chroma database saved to: {self.vector_db_path}")
+        # Use existing Pinecone index
+        # pc = Pinecone(api_key=self.pinecone_api_key)
+        if self.index_name not in [idx.name for idx in self.pinecone_client.list_indexes()]:
+            print(f"Pinecone index '{self.index_name}' not found! Please create it first on the Pinecone dashboard.")
+            return
+        index = self.pinecone_client.Index(self.index_name)
+        # Create Pinecone vector store
+        self.vector_store = PineconeVectorStore(index=index, embedding=self.embeddings)
+        from uuid import uuid4
+        ids = [str(uuid4()) for _ in range(len(chunks))]
+        print("Uploading chunks to Pinecone in batches...")
+        batch_size = 50
+        for i in range(0, len(chunks), batch_size):
+            batch_docs = chunks[i:i+batch_size]
+            batch_ids = ids[i:i+batch_size]
+            self.vector_store.add_documents(documents=batch_docs, ids=batch_ids)
+        print(f"Uploaded {len(chunks)} chunks to Pinecone index '{self.index_name}'!")
     
     def load_vector_db(self) -> bool:
-        """Load the vector database from Chroma"""
-        if not os.path.exists(self.vector_db_path):
-            print(f"Chroma database directory {self.vector_db_path} not found!")
-            return False
-        
+        """Load the Pinecone vector store"""
         try:
-            print("Loading Chroma vector database...")
-            
-            # Load existing Chroma database
-            self.vector_store = Chroma(
-                persist_directory=self.vector_db_path,
-                embedding_function=self.embeddings
-            )
-            
-            # Get collection info
-            collection = self.vector_store._collection
-            count = collection.count()
-            print(f"Loaded Chroma database with {count} documents")
+            if not self.pinecone_api_key:
+                raise ValueError("Pinecone API key not found in environment variable 'pinecone_KEY'.")
+            # pc = pinecone.Pinecone(api_key=self.pinecone_api_key)
+            if self.index_name not in [idx.name for idx in self.pinecone_client.list_indexes()]:
+                print(f"Pinecone index '{self.index_name}' not found!")
+                return False
+            index = self.pinecone_client.Index(self.index_name)
+            self.vector_store = PineconeVectorStore(index=index, embedding=self.embeddings)
+            print(f"Loaded Pinecone vector store for index '{self.index_name}'")
             return True
-            
         except Exception as e:
-            print(f"Error loading Chroma database: {str(e)}")
+            print(f"Error loading Pinecone vector store: {str(e)}")
             return False
     
     def query_relevant_content(self, query: str, k: int = 5) -> str:

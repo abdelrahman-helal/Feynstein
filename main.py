@@ -108,6 +108,7 @@ def process_question():
     if question_type == 'text':
         # Process text-based question with RAG
         context = langchain_rag.query_relevant_content(query=content)
+        print(f'Context: {context}')
         response = feynstein_model.generate_response(
             question=content,
             thread_id=thread_id,

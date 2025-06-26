@@ -7,6 +7,22 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        // Configure MathJax
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true,
+                processEnvironments: true
+            },
+            options: {
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            }
+        };
+    </script>
     <style>
         /* Dark mode styles */
         .dark {
@@ -307,7 +323,8 @@
                 messagesArea.appendChild(messageElement);
             });
             messagesArea.scrollTop = messagesArea.scrollHeight;
-            MathJax.typeset();
+            // Delay MathJax typeset to ensure DOM is updated
+            setTimeout(() => { MathJax.typeset(); }, 0);
         }
 
         function createMessageElement(message) {
@@ -321,14 +338,14 @@
                     : 'bg-white border border-gray-200'
             }`;
             
-            // Process the content for formatting
-            let processedContent = message.content
-                // Convert ### heading: to <h3>Heading</h3>
-                .replace(/###\s*(.*?):/g, '<h3 class="text-xl font-semibold mt-4 mb-2">$1</h3>')
-                // Convert **text** or *text* to <b>text</b>
-                .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-                .replace(/\*(.*?)\*/g, '<b>$1</b>');
-            
+            // Use marked.js for markdown rendering for assistant messages
+            let processedContent = message.content;
+            if (message.role === 'assistant') {
+                processedContent = marked.parse(processedContent, { breaks: true });
+            } else {
+                // For user, escape HTML for safety
+                processedContent = processedContent.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            }
             messageContent.innerHTML = processedContent;
             div.appendChild(messageContent);
             return div;
@@ -424,7 +441,8 @@
                     loadChatHistory(); // Refresh chat list
                 }
                 
-                MathJax.typeset();
+                // Process MathJax after content is added
+                setTimeout(() => { MathJax.typeset(); }, 100);
             })
             .catch(error => {
                 console.error('Error:', error);
@@ -468,4 +486,4 @@
         }
     </script>
 </body>
-</html> 
+</html>

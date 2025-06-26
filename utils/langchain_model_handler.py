@@ -1,6 +1,7 @@
 import os
+import getpass
 from typing import Dict, Any, Optional, List
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
@@ -18,12 +19,10 @@ class State(TypedDict):
 
 class FeynsteinModel:
     def __init__(self):
-        self.model = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash-exp",
-            google_api_key=os.getenv("GOOGLE_API_KEY"),
-            temperature=0.7,
-            max_tokens=2048
-        )
+        # Initialize Gemini model using init_chat_model
+        # if not os.environ.get("OPENAI_API_KEY"):
+        #     os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter your OpenAI API key: ")
+        self.model = init_chat_model("gemini-2.0-flash", model_provider="google_genai")
         
         # System prompt for physics tutoring
         self.system_prompt = """You are Feynstein, an expert physics tutor named after Richard Feynman. 
@@ -34,12 +33,7 @@ class FeynsteinModel:
         2. Use analogies and real-world examples when helpful
         3. Encourage critical thinking rather than just providing answers by asking follow up questions
         4.When using context from textbooks, incorporate it naturally into your explanations.
-        5. Always maintain a conversational, encouraging tone unless the user assigns a specific tone.
-        
-        Formatting:
-        - Place headings inside three hashes (###)
-        - Use double dollar signs for block equations (in seperate line)
-        - Use single dollar signs for inline equations
+        5. Always maintain a conversational, encouraging tone unless the user assigns a specific tone
         """
         
         # Create the prompt template
@@ -90,8 +84,10 @@ class FeynsteinModel:
                 "context": context,
                 "input": last_message.content
             })
+            
             # Get response from model
             response = self.model.invoke(prompt)
+            return {"messages": [response]}
         
         # Create the graph
         workflow = StateGraph(state_schema=MessagesState)
@@ -154,7 +150,7 @@ class FeynsteinModel:
                 "explanation": ai_message.content,
                 "next_steps": [],
                 "metadata": {
-                    "model": "gemini-2.0-flash-exp",
+                    "model": "gemini-2.0-flash",
                     "context_used": bool(context),
                     "thread_id": thread_id,
                     "question_type": question_type
@@ -168,7 +164,7 @@ class FeynsteinModel:
                 "next_steps": [],
                 "metadata": {
                     "error": str(e),
-                    "model": "gemini-2.0-flash-exp"
+                    "model": "gemini-2.0-flash"
                 }
             }
     

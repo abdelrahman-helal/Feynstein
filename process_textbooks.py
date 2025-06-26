@@ -47,7 +47,6 @@ def main():
         langchain_rag.process_and_save_vector_db(textbooks_dir)
         
         print("\n=== Processing Complete! ===")
-        print(f"Vector database saved to: {langchain_rag.vector_db_path}")
         print("You can now deploy your application to Vercel or other platforms.")
         print("The vector database will be loaded automatically when the app starts.")
         
