@@ -10,3 +10,4 @@ langchain-google-genai==2.0.0
 langchain-pinecone
 pinecone
 requests
+gunicorn==21.2.0

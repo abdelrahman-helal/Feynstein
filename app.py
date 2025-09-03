@@ -16,9 +16,13 @@ def create_app():
     # Configuration
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
     
-    # Use PostgreSQL database URI for production
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://feynstein_user:XPiBluFHTxSO5qinJaqoSZ4J2chHezLi@dpg-d2qvapl6ubrc73e0mkqg-a.oregon-postgres.render.com/feynstein'
-    
+    # Use environment variable for database URI in production, fallback to hardcoded for development
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        # Render provides DATABASE_URL, but SQLAlchemy expects DATABASE_URL
+        if database_url.startswith('postgres://'):
+            database_url = database_url.replace('postgres://', 'postgresql://', 1)
+        app.config['SQLALCHEMY_DATABASE_URI'] = database_url    
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     # Initialize extensions
