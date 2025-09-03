@@ -1,57 +1,53 @@
-# Feynstein
+# Feynstein - AI Physics Tutor
 
-An AI-powered physics tutoring application with authentication, chat history, and support for both text and image-based questions. Built with LangChain, Gemini 2.0 Flash, and modern web technologies.
+An intelligent AI-powered physics tutoring application that combines the power of Retrieval-Augmented Generation (RAG) with advanced language models to provide contextually accurate physics education. Built with LangChain, Google Gemini, and Qwen vision models for comprehensive learning support.
 
 ## Features
 
-- **User Authentication**: Secure sign-up and login system
-- **Chat History**: Persistent chat sessions with message persistence using LangGraph checkpoints
-- **Text Questions**: Ask physics questions in text format
-- **Image Questions**: Upload images of equations for analysis
-- **Step-by-step Guidance**: Interactive learning with step-by-step solutions
-- **RAG System**: Retrieval-Augmented Generation using pre-processed physics textbooks
-- **Modern UI**: ChatGPT-like interface with responsive design
-- **LangChain Integration**: Built with LangChain and Gemini 2.0 Flash for enhanced AI capabilities
+### 🧠 **Intelligent RAG System**
+- **Retrieval-Augmented Generation**: Combines textbook knowledge with AI reasoning
+- **Physics Textbook Integration**: Pre-processed physics textbooks provide accurate context
+- **Context-Aware Responses**: AI responses are grounded in verified physics content
+- **Smart Context Selection**: Automatically retrieves relevant textbook sections for questions
 
-## Setup Instructions
+### 🤖 **AI Models**
+- **Google Gemini 2.0 Flash**: Primary physics tutoring with high accuracy and reasoning
+- **Qwen2.5-VL Vision Model**: Advanced image processing for equation recognition
+- **LangChain Integration**: Orchestrates multiple AI models for optimal responses
+- **Conversation Memory**: Maintains context across chat sessions
 
-<<<<<<< HEAD
-### 1. Install Dependencies
+### 💬 **Interactive Learning**
+- **Text Questions**: Ask physics questions in natural language
+- **Image Questions**: Upload equation images for instant analysis
+- **Step-by-step Guidance**: Interactive problem-solving with detailed explanations
+- **Follow-up Questions**: Seamless conversation flow without losing context
 
-=======
-1. Install dependencies:
->>>>>>> 36a8783c11a3952f176f678a5f51126f38b88d91
-```bash
-pip install -r requirements.txt
-```
-
-<<<<<<< HEAD
-### 2. Environment Variables
-
-Create a `.env` file in the root directory with the following variables:
-
-```env
-HF_TOKEN=your_huggingface_token_here
-GOOGLE_API_KEY=your_google_api_key_here
-SECRET_KEY=your_secret_key_here
-```
+### 🔐 **User Experience**
+- **Secure Authentication**: User registration and login system
+- **Chat History**: Persistent conversations with searchable history
+- **Modern UI**: ChatGPT-like interface with dark mode support
+- **Math Rendering**: Beautiful LaTeX equation display with MathJax
+- **Responsive Design**: Works seamlessly on desktop and mobile devices
 
 **Required API Keys:**
 - **Google API Key**: For Gemini 2.0 Flash model access
-- **Hugging Face Token**: For image processing with Qwen model
+- **Hugging Face Token**: For image processing with Qwen2.5-VL model
+- **Pinecone API Key**: For vector database storage (optional, can use local Chroma)
 - **Secret Key**: For Flask session management
 
-### 3. Initialize Database
+### Initialize Database
 
 ```bash
 python init_db.py
 ```
 
-This will create the SQLite database and a default admin user:
+This will create the PostgreSQL database tables and a default admin user:
 - Username: `admin`
 - Password: `admin123`
 
-### 4. Process Textbooks (One-time setup)
+**Note**: Make sure your PostgreSQL database is running and accessible via the DATABASE_URL environment variable.
+
+### Process Textbooks (One-time setup)
 
 Add your physics textbook PDFs to the `textbooks/` directory, then run:
 
@@ -67,69 +63,30 @@ This will:
 
 **Note**: This step is required for RAG functionality. The app will work without it, but won't have access to textbook knowledge.
 
-### 5. Run the Application
-
-=======
-2. Set up environment variables:
-Create a `.env` file with your API keys:
-```
-OPENAI_API_KEY=your_api_key_here
-```
-
-3. Run the application:
->>>>>>> 36a8783c11a3952f176f678a5f51126f38b88d91
-```bash
-python app.py
-```
-
-The application will be available at `http://localhost:5000`
-
-## Usage
-
-### Authentication
-1. Visit the application
-2. Sign up for a new account or log in with existing credentials
-3. You'll be redirected to the main chat interface
-
-### Using the Chat Interface
-1. **New Chat**: Click the "+" button in the sidebar to start a new conversation
-2. **Text Questions**: Type your physics question in the text area
-3. **Image Questions**: Click the "Image" button and upload an equation image
-4. **Chat History**: Click on any chat in the sidebar to view previous conversations
-5. **Delete Chats**: Use the trash icon to delete unwanted conversations
-
-### Features
-- **Real-time Responses**: Get immediate AI-powered physics explanations using Gemini 2.0 Flash
-- **Step-by-step Learning**: Interactive guidance through problem-solving
-- **Context-Aware**: Uses relevant textbook information for accurate responses
-- **Math Rendering**: Supports LaTeX math equations with MathJax
-- **Message Persistence**: Each chat maintains conversation history using LangGraph checkpoints
-
 ## Project Structure
 
 ```
 Feynstein/
-├── app.py                     # Main Flask application
+├── app.py                     # Main Flask application with PostgreSQL support
 ├── auth.py                   # Authentication blueprint
-├── main.py                   # Main chat functionality blueprint
-├── models.py                 # Database models
+├── main.py                   # Main chat functionality with RAG integration
+├── models.py                 # Database models (User, Chat, Message)
 ├── init_db.py                # Database initialization script
-├── process_textbooks.py      # Textbook processing script
-├── requirements.txt          # Python dependencies
+├── process_textbooks.py      # Textbook processing and vectorization
+├── requirements.txt          # Python dependencies including PostgreSQL
+├── Procfile                  # Production deployment configuration
+├── env.example               # Environment variables template
 ├── chroma_db/                # Chroma vector database (generated)
+├── textbooks/                # Physics textbook PDFs for RAG
 ├── templates/
 │   ├── auth/
 │   │   ├── login.html        # Login page
 │   │   └── signup.html       # Signup page
-│   └── chat.html             # Main chat interface
-├── textbooks/                # Physics textbook PDFs
+│   └── chat.html             # Main chat interface with MathJax
 └── utils/
-    ├── langchain_model_handler.py    # LangChain model with Gemini 2.0 Flash
+    ├── langchain_model_handler.py    # LangChain integration with Gemini 2.0 Flash
     ├── langchain_rag_system.py       # RAG system with Chroma vector database
-    ├── equation_processor.py         # Image processing utilities
-    ├── initialize_rag.py             # Legacy RAG system (deprecated)
-    ├── model_handler.py              # Legacy model handler (deprecated)
-    └── rag_system.py                 # Legacy RAG system (deprecated)
+    └── equation_processor.py         # Image processing utilities
 ```
 
 ## Database Schema
@@ -157,54 +114,18 @@ Feynstein/
 - `question_type`: 'text' or 'image'
 - `context_used`: Whether RAG context was used
 
+**Note**: The application now uses PostgreSQL for production deployment, providing better scalability and performance compared to SQLite.
+
 ## Technologies Used
 
-- **Backend**: Flask, SQLAlchemy, Flask-Login
-- **AI/ML**: LangChain, Gemini 2.0 Flash, Qwen2.5-VL, sentence-transformers
-- **Frontend**: HTML, CSS (Tailwind), JavaScript
-- **Database**: SQLite3
-- **Vector Database**: Chroma with persistent storage
-- **Math Rendering**: MathJax
-- **Authentication**: Werkzeug password hashing
-- **Message Persistence**: LangGraph checkpoints
+- **Backend**: Flask, SQLAlchemy, Flask-Login, Gunicorn
+- **AI/ML**: LangChain, Google Gemini 2.0 Flash, Qwen2.5-VL, sentence-transformers
+- **Frontend**: HTML, CSS (Tailwind), JavaScript, MathJax
+- **Database**: PostgreSQL (production)
+- **Vector Database**: Pinecone
+- **Message Persistence**: LangGraph checkpoints with conversation memory
+- **Production**: Render-ready with Procfile and environment configuration
 
-## Deployment to Vercel
 
-### Prerequisites
-1. Process textbooks locally using `python process_textbooks.py`
-2. Ensure `chroma_db/` directory is included in your repository
-3. Set up environment variables in Vercel dashboard
-
-### Deployment Steps
-1. Push your code to GitHub
-2. Connect your repository to Vercel
-3. Set environment variables:
-   - `GOOGLE_API_KEY`
-   - `HF_TOKEN`
-   - `SECRET_KEY`
-4. Deploy
-
-**Important**: The `chroma_db/` directory contains the pre-processed textbook embeddings and should be included in your deployment.
-
-## Security Features
-
-- Password hashing with Werkzeug
-- Session management with Flask-Login
-- CSRF protection
-- Input validation and sanitization
-- Secure password requirements
-- Thread-based message persistence
-
-## API Integration
-
-### Google Gemini 2.0 Flash
-- Used for main physics tutoring responses
-- Configured with temperature 0.7 for balanced creativity and accuracy
-- Supports up to 2048 tokens per response
-
-### Hugging Face Qwen2.5-VL
-- Used for image-based equation extraction
-- Processes uploaded equation images
-- Extracts text representations for further processing
 
 
