@@ -6,21 +6,22 @@
     <title>Feynstein - Chat</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
         // Configure MathJax
         window.MathJax = {
             tex: {
                 inlineMath: [['$', '$'], ['\\(', '\\)']],
-                displayMath: [['$$', '$$'], ['\\[', '\\]']],
-                processEscapes: true,
-                processEnvironments: true
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
             },
-            options: {
-                ignoreHtmlClass: 'tex2jax_ignore',
-                processHtmlClass: 'tex2jax_process'
+            svg: {
+                fontCache: 'global'
             }
+            // options: {
+            //     ignoreHtmlClass: 'tex2jax_ignore',
+            //     processHtmlClass: 'tex2jax_process'
+            // }
         };
     </script>
     <style>
@@ -199,6 +200,7 @@
     <script>
         let currentChatId = null;
         let currentStep = 0;
+        let messageCount = 0; // Track the number of messages in current chat
         let isDarkMode = localStorage.getItem('darkMode') === 'true';
 
         // Initialize dark mode
@@ -293,6 +295,7 @@
         function startNewChat() {
             currentChatId = null;
             currentStep = 0;
+            messageCount = 0; // Reset message count for new chat
             chatTitle.textContent = 'New Chat';
             deleteChatBtn.classList.add('hidden');
             messagesArea.innerHTML = `
@@ -311,6 +314,7 @@
                     currentChatId = chat.id;
                     chatTitle.textContent = chat.title;
                     deleteChatBtn.classList.remove('hidden');
+                    messageCount = chat.messages.length; // Set message count based on loaded chat
                     displayMessages(chat.messages);
                 })
                 .catch(error => console.error('Error loading chat:', error));
@@ -322,9 +326,10 @@
                 const messageElement = createMessageElement(message);
                 messagesArea.appendChild(messageElement);
             });
+            messageCount = messages.length; // Update message count
             messagesArea.scrollTop = messagesArea.scrollHeight;
             // Delay MathJax typeset to ensure DOM is updated
-            setTimeout(() => { MathJax.typeset(); }, 0);
+            setTimeout(() => { MathJax.typeset(); }, 100);
         }
 
         function createMessageElement(message) {
@@ -407,7 +412,20 @@
             messagesArea.appendChild(loadingElement);
             messagesArea.scrollTop = messagesArea.scrollHeight;
 
-            // Send request
+            // Determine if this is the first message in the chat
+            const isFirstMessage = messageCount === 0;
+            
+            if (isFirstMessage) {
+                // First message: use process_question with RAG context
+                handleFirstQuestion(type, content, loadingElement);
+            } else {
+                // Follow-up message: use next_step without additional context
+                handleFollowUpQuestion(content, loadingElement);
+            }
+        }
+
+        function handleFirstQuestion(type, content, loadingElement) {
+            // Send request to process_question endpoint
             fetch('/process_question', {
                 method: 'POST',
                 headers: {
@@ -440,6 +458,55 @@
                     deleteChatBtn.classList.remove('hidden');
                     loadChatHistory(); // Refresh chat list
                 }
+                
+                // Increment message count for this chat
+                messageCount += 2; // User message + assistant response
+                
+                // Process MathJax after content is added
+                setTimeout(() => { MathJax.typeset(); }, 100);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                messagesArea.removeChild(loadingElement);
+                const errorMessage = {
+                    role: 'assistant',
+                    content: 'Sorry, an error occurred while processing your question.'
+                };
+                const errorElement = createMessageElement(errorMessage);
+                messagesArea.appendChild(errorElement);
+                messagesArea.scrollTop = messagesArea.scrollHeight;
+            });
+        }
+
+        function handleFollowUpQuestion(content, loadingElement) {
+            // Send request to next_step endpoint
+            fetch('/next_step', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    response: content,
+                    chat_id: currentChatId,
+                    current_step: currentStep
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Remove loading message
+                messagesArea.removeChild(loadingElement);
+                
+                // Add assistant response
+                const assistantMessage = {
+                    role: 'assistant',
+                    content: data.response.explanation
+                };
+                const assistantElement = createMessageElement(assistantMessage);
+                messagesArea.appendChild(assistantElement);
+                messagesArea.scrollTop = messagesArea.scrollHeight;
+                
+                // Increment message count for this chat
+                messageCount += 2; // User message + assistant response
                 
                 // Process MathJax after content is added
                 setTimeout(() => { MathJax.typeset(); }, 100);

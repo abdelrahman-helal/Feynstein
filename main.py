@@ -79,6 +79,11 @@ def delete_chat(chat_id):
 @main.route('/process_question', methods=['POST'])
 @login_required
 def process_question():
+    """
+    Handle the first question in a new chat or conversation.
+    This endpoint provides RAG context and creates new chat sessions.
+    For follow-up questions, use the next_step endpoint instead.
+    """
     data = request.json
     question_type = data.get('type')  # 'text' or 'image'
     content = data.get('content')
@@ -193,6 +198,11 @@ def process_question():
 @main.route('/next_step', methods=['POST'])
 @login_required
 def next_step():
+    """
+    Handle follow-up questions in an existing chat.
+    This endpoint is used for subsequent messages after the initial question.
+    No additional RAG context is provided - the model relies on conversation history.
+    """
     data = request.json
     current_step = data.get('current_step', 0)
     student_response = data.get('response')
@@ -215,6 +225,8 @@ def next_step():
     db.session.add(user_message)
     
     # Generate next step based on student's response using LangChain model
+    # For follow-up questions, we don't need additional context from RAG
+    # The model can use conversation history to provide contextual responses
     response = feynstein_model.generate_response(
         question=student_response,
         thread_id=thread_id,
@@ -226,7 +238,8 @@ def next_step():
     assistant_message = Message(
         chat_id=chat_id,
         role='assistant',
-        content=response['explanation']
+        content=response['explanation'],
+        context_used=False  # No context used for follow-up responses
     )
     db.session.add(assistant_message)
     
