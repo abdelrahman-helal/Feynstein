@@ -7,7 +7,7 @@ werkzeug
 langgraph
 langchain
 langchain-core
-langchain-comunity
+langchain-community
 langchain-huggingface
 langchain-google-genai
 langchain-pinecone
