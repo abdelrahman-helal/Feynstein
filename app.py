@@ -16,11 +16,8 @@ def create_app():
     # Configuration
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
     
-    # Use environment variable for database URI in production
-    if os.getenv('DATABASE_URL'):
-        app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-    else:
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///physics_tutor.db'
+    # Use PostgreSQL database URI for production
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://feynstein_user:XPiBluFHTxSO5qinJaqoSZ4J2chHezLi@dpg-d2qvapl6ubrc73e0mkqg-a.oregon-postgres.render.com/feynstein'
     
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
