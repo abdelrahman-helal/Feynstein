@@ -1,5 +1,4 @@
 import os
-import getpass
 from typing import Dict, Any, Optional, List
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
@@ -11,7 +10,7 @@ from langgraph.graph import StateGraph, START, END, MessagesState
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import trim_messages
 from typing_extensions import Annotated, TypedDict
-import json
+
 
 class State(TypedDict):
     messages: Annotated[List[BaseMessage], "add_messages"]

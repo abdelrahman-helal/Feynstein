@@ -4,10 +4,16 @@ flask-login
 flask-sqlalchemy
 psycopg2-binary
 werkzeug
+langgraph
 langchain
 langchain-core
+langchain-comunity
+langchain-huggingface
 langchain-google-genai
 langchain-pinecone
+huggingface_hub
 pinecone
 requests
 gunicorn
+typing
+typing_extensions
