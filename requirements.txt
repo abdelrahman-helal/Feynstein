@@ -17,3 +17,4 @@ requests
 gunicorn
 typing
 typing_extensions
+sentence-transformers
