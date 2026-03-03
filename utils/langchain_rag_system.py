@@ -106,7 +106,7 @@ class LangChainRAGSystem:
             print(f"Error loading Pinecone vector store: {str(e)}")
             return False
     
-    def query_relevant_content(self, query: str, k: int = 5) -> str:
+    def query_relevant_content(self, query: str, k: int = 10) -> str:
         """Query the vector database for relevant content"""
         if self.vector_store is None:
             print("Vector store not initialized!")
@@ -129,7 +129,7 @@ class LangChainRAGSystem:
             print(f"Error querying vector database: {str(e)}")
             return ""
     
-    def get_relevant_documents(self, query: str, k: int = 5) -> List[Document]:
+    def get_relevant_documents(self, query: str, k: int = 10) -> List[Document]:
         """Get relevant documents for a query (for use as a retriever)"""
         if self.vector_store is None:
             return []
@@ -143,7 +143,7 @@ class LangChainRAGSystem:
 class LangChainRetriever(BaseRetriever):
     """Custom retriever for LangChain integration"""
     
-    def __init__(self, rag_system: LangChainRAGSystem, k: int = 5):
+    def __init__(self, rag_system: LangChainRAGSystem, k: int = 10):
         self.rag_system = rag_system
         self.k = k
     

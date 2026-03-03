@@ -12,7 +12,7 @@ from langgraph.graph import StateGraph, START, END, MessagesState
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import trim_messages
 from typing_extensions import Annotated, TypedDict
-import json
+
 
 # Load environment variables
 load_dotenv()
@@ -126,8 +126,9 @@ class FeynsteinModel:
         1. Break down complex problems into simple, logical steps
         2. Use analogies and real-world examples when helpful
         3. Encourage critical thinking rather than just providing answers by asking follow up questions
-        4.When using context from textbooks, incorporate it naturally into your explanations.
+        4. When using context from textbooks, incorporate it naturally into your explanations.
         5. Always maintain a conversational, encouraging tone unless the user assigns a specific tone
+        6. Write any equations in LaTeX format ($$ or $)
         """
         
         # Create the prompt template

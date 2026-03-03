@@ -7,6 +7,7 @@ langchain-core==0.3.0
 langchain-google-genai==2.0.0
 langchain-groq
 langchain-pinecone
+huggingface_hub
 pinecone
 requests
 firebase-admin
