@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 import json
 from typing import List, Dict, Any, Optional
 from langchain_community.document_loaders import PyPDFLoader
@@ -11,9 +12,13 @@ from langchain_core.retrievers import BaseRetriever
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 
+# Load environment variables
+load_dotenv()
+
 class LangChainRAGSystem:
-    def __init__(self, index_name: str = "feynstein-db"):
-        self.index_name = index_name
+    def __init__(self, index_name: str = None):
+        # Use environment variable for index name, fallback to default
+        self.index_name = index_name or os.getenv('PINECONE_INDEX_NAME', 'feynstein-db')
         self.embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2",
             model_kwargs={'device': 'cpu'}
@@ -25,9 +30,9 @@ class LangChainRAGSystem:
             length_function=len,
         )
         # Pinecone API key from environment
-        self.pinecone_api_key = os.getenv("pinecone_KEY")
+        self.pinecone_api_key = os.getenv("PINECONE_API_KEY")
         if not self.pinecone_api_key:
-            raise ValueError("Pinecone API key not found in environment variable 'pinecone_KEY'.")
+            raise ValueError("Pinecone API key not found in environment variable 'PINECONE_API_KEY'.")
         self.pinecone_client = Pinecone(api_key=self.pinecone_api_key)
     
     def load_textbooks(self, textbooks_dir: str = "textbooks") -> List[Document]:
@@ -88,7 +93,7 @@ class LangChainRAGSystem:
         """Load the Pinecone vector store"""
         try:
             if not self.pinecone_api_key:
-                raise ValueError("Pinecone API key not found in environment variable 'pinecone_KEY'.")
+                raise ValueError("Pinecone API key not found in environment variable 'PINECONE_API_KEY'.")
             # pc = pinecone.Pinecone(api_key=self.pinecone_api_key)
             if self.index_name not in [idx.name for idx in self.pinecone_client.list_indexes()]:
                 print(f"Pinecone index '{self.index_name}' not found!")

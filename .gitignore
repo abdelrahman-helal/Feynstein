@@ -60,4 +60,11 @@ Thumbs.db
 # Project specific
 physics_textbooks_db/
 textbooks/
-*.pdf 
+*.pdf
+chat_data/
+
+# Firebase Service Account Keys
+serviceAccountKey.json
+*serviceAccount*.json
+*-firebase-adminsdk-*.json 
+firebaseAPI.json
