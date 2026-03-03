@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 import getpass
 from typing import Dict, Any, Optional, List
 from langchain.chat_models import init_chat_model
@@ -13,16 +14,109 @@ from langchain_core.messages import trim_messages
 from typing_extensions import Annotated, TypedDict
 import json
 
+# Load environment variables
+load_dotenv()
+
 class State(TypedDict):
     messages: Annotated[List[BaseMessage], "add_messages"]
     context: Optional[str]
 
 class FeynsteinModel:
+    """
+    Physics tutoring model using LangChain with support for multiple LLM providers.
+    
+    Supported providers:
+    - groq: Fast free tier (default) - requires GROQ_API_KEY
+    - huggingface/hf: Free inference API - requires HF_TOKEN
+    - together: Free tier available - requires TOGETHER_API_KEY
+    - ollama: Local models (completely free) - no API key needed
+    - google_genai: Gemini models - requires GOOGLE_API_KEY
+    
+    Set LLM_PROVIDER environment variable to switch providers (default: 'groq')
+    """
     def __init__(self):
-        # Initialize Gemini model using init_chat_model
-        # if not os.environ.get("OPENAI_API_KEY"):
-        #     os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter your OpenAI API key: ")
-        self.model = init_chat_model("gemini-2.0-flash", model_provider="google_genai")
+        # Get provider from environment (default to 'groq' for free tier)
+        # Set LLM_PROVIDER in .env to switch providers: groq, huggingface, together, ollama, google_genai
+        self.provider = os.getenv("LLM_PROVIDER", "groq").lower()
+        
+        # Provider configuration mapping
+        # Format: provider_name: (model_name, provider_string, api_key_env_var, api_key_value)
+        provider_configs = {
+            "groq": (
+                "llama-3.1-8b-instant",  # Fast, free tier - 8B model
+                # Alternative Groq models if this doesn't work:
+                # "mixtral-8x7b-32768" - Mixtral model
+                # "gemma-7b-it" - Google Gemma model
+                "groq",
+                "GROQ_API_KEY",
+                os.getenv("GROQ_API_KEY")
+            ),
+            "huggingface": (
+                "meta-llama/Llama-3.1-8B-Instruct",  # Free inference API
+                "huggingface",
+                "HF_TOKEN",
+                os.getenv("HF_TOKEN")
+            ),
+            "hf": (
+                "meta-llama/Llama-3.1-8B-Instruct",  # Alias for huggingface
+                "huggingface",
+                "HF_TOKEN",
+                os.getenv("HF_TOKEN")
+            ),
+            "together": (
+                "meta-llama/Llama-3-70b-chat-hf",  # Free tier available
+                "together",
+                "TOGETHER_API_KEY",
+                os.getenv("TOGETHER_API_KEY")
+            ),
+            "ollama": (
+                "llama3",  # Local model - requires Ollama installed locally
+                "ollama",
+                None,  # No API key needed for local Ollama
+                None
+            ),
+            "google_genai": (
+                "gemini-2.0-flash",  # Google Gemini (may have quota limits)
+                "google_genai",
+                "GOOGLE_API_KEY",
+                os.getenv("GOOGLE_API_KEY")
+            ),
+        }
+        
+        # Get provider configuration
+        if self.provider not in provider_configs:
+            raise ValueError(
+                f"Unsupported LLM provider: {self.provider}. "
+                f"Supported providers: {', '.join(provider_configs.keys())}"
+            )
+        
+        model_name, provider_string, api_key_env_var, api_key_value = provider_configs[self.provider]
+        self.model_name = model_name
+        self.provider_string = provider_string
+        
+        # Set API key if required (except for Ollama)
+        if api_key_env_var and api_key_value:
+            os.environ[api_key_env_var] = api_key_value
+        elif api_key_env_var and not api_key_value:
+            raise ValueError(
+                f"API key not found for provider '{self.provider}'. "
+                f"Please set {api_key_env_var} in your environment variables."
+            )
+        
+        # Initialize the model
+        print(f"Initializing {self.provider} model: {model_name}")
+        try:
+            self.model = init_chat_model(model_name, model_provider=provider_string)
+            print(f"✓ Successfully initialized {self.provider} model")
+        except Exception as e:
+            error_msg = (
+                f"Failed to initialize {self.provider} model: {str(e)}\n"
+                f"Make sure you have:\n"
+                f"1. Set {api_key_env_var} in your .env file (if required)\n"
+                f"2. Installed required packages: pip install -r requirements.txt\n"
+                f"3. For Ollama: Install and run Ollama locally (ollama pull {model_name})"
+            )
+            raise RuntimeError(error_msg) from e
         
         # System prompt for physics tutoring
         self.system_prompt = """You are Feynstein, an expert physics tutor named after Richard Feynman. 
@@ -150,7 +244,8 @@ class FeynsteinModel:
                 "explanation": ai_message.content,
                 "next_steps": [],
                 "metadata": {
-                    "model": "gemini-2.0-flash",
+                    "model": self.model_name,
+                    "provider": self.provider,
                     "context_used": bool(context),
                     "thread_id": thread_id,
                     "question_type": question_type
@@ -164,7 +259,8 @@ class FeynsteinModel:
                 "next_steps": [],
                 "metadata": {
                     "error": str(e),
-                    "model": "gemini-2.0-flash"
+                    "model": self.model_name,
+                    "provider": self.provider
                 }
             }
     
@@ -178,6 +274,54 @@ class FeynsteinModel:
         except Exception as e:
             print(f"Error getting conversation history: {str(e)}")
             return []
+    
+    @classmethod
+    def create_model_with_prompt(cls, system_prompt: str):
+        """
+        Create a model instance with a custom system prompt.
+        Useful for creating student/teacher agents with different behaviors.
+        
+        Args:
+            system_prompt: Custom system prompt for the model
+            
+        Returns:
+            Tuple of (model, prompt_template) for use in conversations
+        """
+        # Get provider from environment (same as main model)
+        provider = os.getenv("LLM_PROVIDER", "groq").lower()
+        
+        # Provider configuration mapping (same as __init__)
+        provider_configs = {
+            "groq": ("llama-3.1-8b-instant", "groq", "GROQ_API_KEY", os.getenv("GROQ_API_KEY")),
+            "huggingface": ("meta-llama/Llama-3.1-8B-Instruct", "huggingface", "HF_TOKEN", os.getenv("HF_TOKEN")),
+            "hf": ("meta-llama/Llama-3.1-8B-Instruct", "huggingface", "HF_TOKEN", os.getenv("HF_TOKEN")),
+            "together": ("meta-llama/Llama-3-70b-chat-hf", "together", "TOGETHER_API_KEY", os.getenv("TOGETHER_API_KEY")),
+            "ollama": ("llama3", "ollama", None, None),
+            "google_genai": ("gemini-2.0-flash", "google_genai", "GOOGLE_API_KEY", os.getenv("GOOGLE_API_KEY")),
+        }
+        
+        if provider not in provider_configs:
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+        
+        model_name, provider_string, api_key_env_var, api_key_value = provider_configs[provider]
+        
+        # Set API key if required
+        if api_key_env_var and api_key_value:
+            os.environ[api_key_env_var] = api_key_value
+        elif api_key_env_var and not api_key_value:
+            raise ValueError(f"API key not found for provider '{provider}'. Please set {api_key_env_var} in your environment variables.")
+        
+        # Initialize the model
+        model = init_chat_model(model_name, model_provider=provider_string)
+        
+        # Create prompt template with custom system prompt
+        prompt_template = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            MessagesPlaceholder(variable_name="messages"),
+            ("human", "{input}")
+        ])
+        
+        return model, prompt_template
 
 # Create a singleton instance
 feynstein_model = FeynsteinModel() 

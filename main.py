@@ -1,12 +1,14 @@
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, Response, stream_with_context
 from flask_login import login_required, current_user
-from models import db, Chat, Message
+from utils.chat_storage import chat_storage
 from utils.langchain_rag_system import langchain_rag
 from utils.langchain_model_handler import feynstein_model
+from utils.peer_observation_handler import peer_observation_handler
 import base64
 from huggingface_hub import InferenceClient
 import os
 import uuid
+import json
 
 main = Blueprint('main', __name__)
 
@@ -20,36 +22,41 @@ qwen_client = InferenceClient(
 @login_required
 def home():
     # Get user's chat history
-    chats = Chat.query.filter_by(user_id=current_user.id).order_by(Chat.updated_at.desc()).all()
+    chats = chat_storage.get_user_chats(current_user.firebase_uid)
+    # Sort by updated_at (newest first)
+    chats.sort(key=lambda x: x.get('updated_at', ''), reverse=True)
     return render_template('chat.html', chats=chats)
 
 @main.route('/chats')
 @login_required
 def get_chats():
-    chats = Chat.query.filter_by(user_id=current_user.id).order_by(Chat.updated_at.desc()).all()
+    chats = chat_storage.get_user_chats(current_user.firebase_uid)
+    # Sort by updated_at (newest first)
+    chats.sort(key=lambda x: x.get('updated_at', ''), reverse=True)
     return jsonify([{
-        'id': chat.id,
-        'title': chat.title,
-        'created_at': chat.created_at.isoformat(),
-        'updated_at': chat.updated_at.isoformat(),
-        'message_count': len(chat.messages)
+        'id': chat['id'],
+        'title': chat['title'],
+        'created_at': chat['created_at'],
+        'updated_at': chat['updated_at'],
+        'message_count': len(chat['messages'])
     } for chat in chats])
 
-@main.route('/chats/<int:chat_id>')
+@main.route('/chats/<chat_id>')
 @login_required
 def get_chat(chat_id):
-    chat = Chat.query.filter_by(id=chat_id, user_id=current_user.id).first_or_404()
-    messages = Message.query.filter_by(chat_id=chat_id).order_by(Message.timestamp).all()
+    chat = chat_storage.get_chat(current_user.firebase_uid, chat_id)
+    if not chat:
+        return jsonify({'error': 'Chat not found'}), 404
     return jsonify({
-        'id': chat.id,
-        'title': chat.title,
+        'id': chat['id'],
+        'title': chat['title'],
         'messages': [{
-            'id': msg.id,
-            'role': msg.role,
-            'content': msg.content,
-            'timestamp': msg.timestamp.isoformat(),
-            'question_type': msg.question_type
-        } for msg in messages]
+            'id': msg['id'],
+            'role': msg['role'],
+            'content': msg['content'],
+            'timestamp': msg['timestamp'],
+            'question_type': msg['question_type']
+        } for msg in chat['messages']]
     })
 
 @main.route('/chats/new', methods=['POST'])
@@ -58,22 +65,20 @@ def create_chat():
     data = request.json
     title = data.get('title', 'New Chat')
     
-    chat = Chat(title=title, user_id=current_user.id)
-    db.session.add(chat)
-    db.session.commit()
+    chat = chat_storage.create_chat(current_user.firebase_uid, title)
     
     return jsonify({
-        'id': chat.id,
-        'title': chat.title,
-        'created_at': chat.created_at.isoformat()
+        'id': chat['id'],
+        'title': chat['title'],
+        'created_at': chat['created_at']
     })
 
-@main.route('/chats/<int:chat_id>/delete', methods=['DELETE'])
+@main.route('/chats/<chat_id>/delete', methods=['DELETE'])
 @login_required
 def delete_chat(chat_id):
-    chat = Chat.query.filter_by(id=chat_id, user_id=current_user.id).first_or_404()
-    db.session.delete(chat)
-    db.session.commit()
+    success = chat_storage.delete_chat(current_user.firebase_uid, chat_id)
+    if not success:
+        return jsonify({'error': 'Chat not found'}), 404
     return jsonify({'message': 'Chat deleted successfully'})
 
 @main.route('/process_question', methods=['POST'])
@@ -86,24 +91,27 @@ def process_question():
     
     # Create new chat if not provided
     if not chat_id:
-        chat = Chat(title=content[:50] + "..." if len(content) > 50 else content, user_id=current_user.id)
-        db.session.add(chat)
-        db.session.commit()
-        chat_id = chat.id
+        chat = chat_storage.create_chat(
+            current_user.firebase_uid, 
+            content[:50] + "..." if len(content) > 50 else content
+        )
+        chat_id = chat['id']
     else:
-        chat = Chat.query.filter_by(id=chat_id, user_id=current_user.id).first_or_404()
+        chat = chat_storage.get_chat(current_user.firebase_uid, chat_id)
+        if not chat:
+            return jsonify({'error': 'Chat not found'}), 404
     
     # Generate thread ID for this chat (using chat_id for consistency)
-    thread_id = f"user_{current_user.id}_chat_{chat_id}"
+    thread_id = f"user_{current_user.firebase_uid}_chat_{chat_id}"
     
     # Save user message
-    user_message = Message(
-        chat_id=chat_id,
-        role='user',
-        content=content,
-        question_type=question_type
+    user_message = chat_storage.add_message(
+        current_user.firebase_uid,
+        chat_id,
+        'user',
+        content,
+        question_type
     )
-    db.session.add(user_message)
     
     if question_type == 'text':
         # Process text-based question with RAG
@@ -170,23 +178,20 @@ def process_question():
             }
     
     # Save assistant response
-    assistant_message = Message(
-        chat_id=chat_id,
-        role='assistant',
-        content=response['explanation'],
-        context_used=response.get('metadata', {}).get('context_used', False)
+    assistant_message = chat_storage.add_message(
+        current_user.firebase_uid,
+        chat_id,
+        'assistant',
+        response['explanation'],
+        'text',
+        response.get('metadata', {}).get('context_used', False)
     )
-    db.session.add(assistant_message)
-    
-    # Update chat timestamp
-    chat.updated_at = db.func.now()
-    db.session.commit()
     
     return jsonify({
         'chat_id': chat_id,
         'response': response,
-        'user_message_id': user_message.id,
-        'assistant_message_id': assistant_message.id,
+        'user_message_id': user_message['id'],
+        'assistant_message_id': assistant_message['id'],
         'thread_id': thread_id
     })
 
@@ -201,18 +206,20 @@ def next_step():
     if not chat_id:
         return jsonify({'error': 'Chat ID required'}), 400
     
-    chat = Chat.query.filter_by(id=chat_id, user_id=current_user.id).first_or_404()
+    chat = chat_storage.get_chat(current_user.firebase_uid, chat_id)
+    if not chat:
+        return jsonify({'error': 'Chat not found'}), 404
     
     # Generate thread ID for this chat
-    thread_id = f"user_{current_user.id}_chat_{chat_id}"
+    thread_id = f"user_{current_user.firebase_uid}_chat_{chat_id}"
     
     # Save user response
-    user_message = Message(
-        chat_id=chat_id,
-        role='user',
-        content=student_response
+    user_message = chat_storage.add_message(
+        current_user.firebase_uid,
+        chat_id,
+        'user',
+        student_response
     )
-    db.session.add(user_message)
     
     # Generate next step based on student's response using LangChain model
     response = feynstein_model.generate_response(
@@ -223,20 +230,74 @@ def next_step():
     )
     
     # Save assistant response
-    assistant_message = Message(
-        chat_id=chat_id,
-        role='assistant',
-        content=response['explanation']
+    assistant_message = chat_storage.add_message(
+        current_user.firebase_uid,
+        chat_id,
+        'assistant',
+        response['explanation']
     )
-    db.session.add(assistant_message)
-    
-    # Update chat timestamp
-    chat.updated_at = db.func.now()
-    db.session.commit()
     
     return jsonify({
         'response': response,
-        'user_message_id': user_message.id,
-        'assistant_message_id': assistant_message.id,
+        'user_message_id': user_message['id'],
+        'assistant_message_id': assistant_message['id'],
         'thread_id': thread_id
-    }) 
+    })
+
+@main.route('/observe_peer_attempt', methods=['POST'])
+@login_required
+def observe_peer_attempt():
+    """Handle peer observation mode where student and teacher agents converse with streaming"""
+    data = request.json
+    topic = data.get('topic')
+    chat_id = data.get('chat_id')
+    num_exchanges = data.get('num_exchanges', 4)
+    
+    if not topic:
+        return jsonify({'error': 'Topic is required'}), 400
+    
+    # Create new chat if not provided
+    if not chat_id:
+        chat = chat_storage.create_chat(
+            current_user.firebase_uid,
+            f"Peer Observation: {topic}"
+        )
+        chat_id = chat['id']
+    else:
+        chat = chat_storage.get_chat(current_user.firebase_uid, chat_id)
+        if not chat:
+            return jsonify({'error': 'Chat not found'}), 404
+    
+    def generate_stream():
+        """Generator function that yields SSE-formatted events"""
+        try:
+            # Send initial chat_id event
+            yield f"data: {json.dumps({'type': 'chat_id', 'chat_id': chat_id, 'topic': topic})}\n\n"
+            
+            # Generate conversation and stream messages as they're created
+            conversation_gen = peer_observation_handler.generate_conversation(
+                topic=topic,
+                num_exchanges=num_exchanges
+            )
+            
+            for msg in conversation_gen:
+                # Save message to chat storage immediately
+                saved_message = chat_storage.add_message(
+                    current_user.firebase_uid,
+                    chat_id,
+                    msg['role'],  # 'student' or 'teacher'
+                    msg['content'],
+                    'text'
+                )
+                
+                # Send message event with saved message data
+                yield f"data: {json.dumps({'type': 'message', 'message': saved_message})}\n\n"
+            
+            # Send completion event
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            
+        except Exception as e:
+            # Send error event
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+    
+    return Response(stream_with_context(generate_stream()), mimetype='text/event-stream') 
