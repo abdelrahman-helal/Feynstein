@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 from flask_login import LoginManager
-from models import db, User
+from user_manager import user_manager
 from auth import auth
 from main import main
 from utils.langchain_rag_system import langchain_rag
@@ -16,16 +16,28 @@ def create_app():
     # Configuration
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-this')
     
-    # Use environment variable for database URI in production
-    if os.getenv('DATABASE_URL'):
-        app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-    else:
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///physics_tutor.db'
+    # Firebase configuration
+    app.config['FIREBASE_API_KEY'] = os.getenv('FIREBASE_API_KEY')
+    app.config['FIREBASE_AUTH_DOMAIN'] = os.getenv('FIREBASE_AUTH_DOMAIN')
+    app.config['FIREBASE_PROJECT_ID'] = os.getenv('FIREBASE_PROJECT_ID')
+    app.config['FIREBASE_STORAGE_BUCKET'] = os.getenv('FIREBASE_STORAGE_BUCKET')
+    app.config['FIREBASE_MESSAGING_SENDER_ID'] = os.getenv('FIREBASE_MESSAGING_SENDER_ID')
+    app.config['FIREBASE_APP_ID'] = os.getenv('FIREBASE_APP_ID')
     
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    # Development environment flags
+    app.config['FLASK_ENV'] = os.getenv('FLASK_ENV', 'production')
+    # Convert string to boolean for template use
+    use_emulator_str = os.getenv('USE_FIREBASE_EMULATOR', 'false').lower()
+    app.config['USE_FIREBASE_EMULATOR'] = use_emulator_str == 'true'
     
-    # Initialize extensions
-    db.init_app(app)
+    # Validate Firebase configuration
+    if not app.config['FIREBASE_PROJECT_ID']:
+        print("Warning: FIREBASE_PROJECT_ID not set. Firebase Auth may not work properly.")
+        print("Please set FIREBASE_PROJECT_ID in your environment variables.")
+    
+    if not app.config['FIREBASE_API_KEY']:
+        print("Warning: FIREBASE_API_KEY not set. Client-side Firebase may not work properly.")
+        print("Please set FIREBASE_API_KEY in your environment variables.")
     
     # Initialize Flask-Login
     login_manager = LoginManager()
@@ -36,7 +48,15 @@ def create_app():
     
     @login_manager.user_loader
     def load_user(user_id):
-        return db.session.get(User, int(user_id))
+        """Load user by Firebase UID. Returns None if user doesn't exist or ID is invalid."""
+        # Handle old database IDs (like "1") gracefully
+        if not user_id or user_id.isdigit():
+            # Old database ID or invalid ID - return None to force re-login
+            return None
+        
+        # Try to get user by Firebase UID
+        user = user_manager.get_user_by_firebase_uid(user_id)
+        return user
     
     # Register blueprints
     app.register_blueprint(auth, url_prefix='/auth')
@@ -52,18 +72,8 @@ def create_app():
     
     return app
 
-def init_db():
-    """Initialize the database with tables"""
-    with create_app().app_context():
-        db.create_all()
-        print("Database tables created successfully!")
-
 # Vercel handler
 app = create_app()
-
-# Create database tables if they don't exist
-with app.app_context():
-    db.create_all()
 
 if __name__ == '__main__':
     app.run(debug=True) 

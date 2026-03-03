@@ -3,66 +3,255 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Feynstein</title>
+    <title>Feynstein - Login</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+<body class="bg-gray-50 min-h-screen flex items-center justify-center">
     <div class="max-w-md w-full space-y-8">
-        <div class="bg-white rounded-lg shadow-md p-8">
-            <!-- Header -->
-            <div class="text-center mb-8">
-                <h1 class="text-3xl font-bold text-gray-800 mb-2">Feynstein</h1>
-                <p class="text-gray-600">Sign in to your account</p>
+        <div>
+            <div class="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-blue-100">
+                <i class="fas fa-atom text-blue-600 text-xl"></i>
             </div>
-
-            <!-- Flash Messages -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="mb-4 p-4 rounded-lg {% if category == 'error' %}bg-red-100 text-red-700 border border-red-300{% elif category == 'success' %}bg-green-100 text-green-700 border border-green-300{% else %}bg-blue-100 text-blue-700 border border-blue-300{% endif %}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-
-            <!-- Login Form -->
-            <form method="POST" class="space-y-6">
-                <div>
-                    <label for="username" class="block text-sm font-medium text-gray-700 mb-2">
-                        Username
-                    </label>
-                    <input type="text" id="username" name="username" required
-                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                           placeholder="Enter your username">
-                </div>
-
-                <div>
-                    <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
-                        Password
-                    </label>
-                    <input type="password" id="password" name="password" required
-                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                           placeholder="Enter your password">
-                </div>
-
-                <button type="submit"
-                        class="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-200 font-medium">
-                    <i class="fas fa-sign-in-alt mr-2"></i>Sign In
+            <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                Welcome to Feynstein
+            </h2>
+            <p class="mt-2 text-center text-sm text-gray-600">
+                Your AI-powered physics tutor
+            </p>
+        </div>
+        
+        <div class="mt-8 space-y-6">
+            <div>
+                <button id="googleSignInBtn" 
+                        class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200">
+                    <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+                        <i class="fab fa-google text-white"></i>
+                    </span>
+                    Sign in with Google
                 </button>
-            </form>
-
-            <!-- Sign Up Link -->
-            <div class="mt-6 text-center">
-                <p class="text-gray-600">
-                    Don't have an account?
-                    <a href="{{ url_for('auth.signup') }}" class="text-blue-500 hover:text-blue-600 font-medium">
-                        Sign up here
-                    </a>
-                </p>
             </div>
+            
+            <div id="loadingSpinner" class="hidden text-center">
+                <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <p class="mt-2 text-sm text-gray-600">Signing you in...</p>
+            </div>
+            
+            <div id="errorMessage" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded"></div>
         </div>
     </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "{{ config.FIREBASE_API_KEY }}",
+            authDomain: "{{ config.FIREBASE_AUTH_DOMAIN }}",
+            projectId: "{{ config.FIREBASE_PROJECT_ID }}",
+            storageBucket: "{{ config.FIREBASE_STORAGE_BUCKET }}",
+            messagingSenderId: "{{ config.FIREBASE_MESSAGING_SENDER_ID }}",
+            appId: "{{ config.FIREBASE_APP_ID }}"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        
+        // Get current origin for redirects
+        const currentOrigin = window.location.origin;
+        
+        // Connect to Firebase Auth Emulator for local development
+        {% set use_emulator = config.get('FLASK_ENV') == 'development' or config.get('USE_FIREBASE_EMULATOR', false) %}
+        {% if use_emulator %}
+        firebase.auth().useEmulator('http://localhost:9099');
+        console.log('Firebase Auth Emulator enabled');
+        console.log('Current page URL:', window.location.href);
+        console.log('Current origin:', currentOrigin);
+        {% else %}
+        console.log('Using production Firebase Auth');
+        console.log('Current page URL:', window.location.href);
+        console.log('Current origin:', currentOrigin);
+        {% endif %}
+
+        // Helper function to send token to backend
+        function sendTokenToBackend(idToken) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/254edd87-486d-44aa-ba32-1b8579bd0de2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.html:79',message:'sendTokenToBackend called',data:{url:'/auth/google/callback',hasToken:!!idToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            return fetch('/auth/google/callback', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    idToken: idToken
+                })
+            })
+            .then(async (response) => {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/254edd87-486d-44aa-ba32-1b8579bd0de2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.html:88',message:'Response received',data:{status:response.status,statusText:response.statusText,contentType:response.headers.get('content-type'),url:response.url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                // #endregion
+                
+                // Clone response to read it multiple times if needed
+                const responseClone = response.clone();
+                
+                if (!response.ok) {
+                    // Read error body from clone
+                    try {
+                        const errorText = await responseClone.text();
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/254edd87-486d-44aa-ba32-1b8579bd0de2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.html:95',message:'Error response body',data:{status:response.status,bodyPreview:errorText.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                        // #endregion
+                        throw new Error(`Authentication failed: ${errorText.substring(0, 100)}`);
+                    } catch (e) {
+                        throw new Error(`Authentication failed with status ${response.status}`);
+                    }
+                }
+                
+                // Parse JSON from original response
+                return response.json();
+            })
+            .then((data) => {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/254edd87-486d-44aa-ba32-1b8579bd0de2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.html:95',message:'JSON parsed successfully',data:{success:data.success},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                // #endregion
+                if (data.success) {
+                    // Redirect to home page
+                    window.location.href = data.redirect;
+                } else {
+                    throw new Error(data.error || 'Authentication failed');
+                }
+            })
+            .catch((error) => {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/254edd87-486d-44aa-ba32-1b8579bd0de2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login.html:102',message:'sendTokenToBackend error',data:{error:error.message,stack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                // #endregion
+                throw error;
+            });
+        }
+
+        // Handle redirect result on page load
+        firebase.auth().getRedirectResult()
+            .then((result) => {
+                if (result.user) {
+                    // User signed in via redirect
+                    console.log('Redirect authentication successful');
+                    document.getElementById('loadingSpinner').classList.remove('hidden');
+                    return result.user.getIdToken();
+                } else if (result.credential) {
+                    // Handle credential if available
+                    console.log('Redirect credential available');
+                }
+                return null;
+            })
+            .then((idToken) => {
+                if (idToken) {
+                    return sendTokenToBackend(idToken);
+                }
+            })
+            .catch((error) => {
+                console.error('Redirect result error:', error);
+                // Only show error if it's not a cancelled operation
+                if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
+                    let errorMsg = error.message || 'Authentication failed. Please try again.';
+                    // Add helpful message for connection errors
+                    if (error.message && error.message.includes('refused')) {
+                        errorMsg += ' Make sure your Flask server is running on ' + currentOrigin;
+                    }
+                    document.getElementById('errorMessage').textContent = errorMsg;
+                    document.getElementById('errorMessage').classList.remove('hidden');
+                }
+                document.getElementById('loadingSpinner').classList.add('hidden');
+            });
+
+        // Google Sign-In with popup fallback to redirect
+        document.getElementById('googleSignInBtn').addEventListener('click', function() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            provider.addScope('email');
+            provider.addScope('profile');
+            
+            // Show loading spinner
+            document.getElementById('loadingSpinner').classList.remove('hidden');
+            document.getElementById('googleSignInBtn').disabled = true;
+            document.getElementById('errorMessage').classList.add('hidden');
+            
+            // When using emulator, prefer redirect over popup to avoid connection issues
+            {% if use_emulator %}
+            // Use redirect method directly with emulator to avoid popup connection issues
+            console.log('Using redirect method with emulator');
+            console.log('Redirect URL will be:', currentOrigin + window.location.pathname);
+            firebase.auth().signInWithRedirect(provider)
+                .catch((error) => {
+                    console.error('Redirect error:', error);
+                    document.getElementById('errorMessage').textContent = error.message || 'Authentication failed. Please try again.';
+                    document.getElementById('errorMessage').classList.remove('hidden');
+                    document.getElementById('loadingSpinner').classList.add('hidden');
+                    document.getElementById('googleSignInBtn').disabled = false;
+                });
+            {% else %}
+            // Try popup first, fall back to redirect if blocked
+            console.log('Attempting popup sign-in...');
+            firebase.auth().signInWithPopup(provider)
+                .then((result) => {
+                    console.log('Popup sign-in successful');
+                    // Get the user's ID token
+                    return result.user.getIdToken();
+                })
+                .then((idToken) => {
+                    console.log('Got ID token, sending to backend...');
+                    // Send the token to our backend
+                    return sendTokenToBackend(idToken);
+                })
+                .catch((error) => {
+                    console.error('Sign-in error:', error);
+                    // Check if error is due to popup being blocked
+                    if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+                        console.log('Popup blocked or closed, falling back to redirect...');
+                        // Set the redirect URL to the current page
+                        // Firebase will redirect back to this page after authentication
+                        const redirectUrl = currentOrigin + window.location.pathname;
+                        console.log('Redirecting to:', redirectUrl);
+                        // Fall back to redirect method - Firebase will redirect back to current page
+                        return firebase.auth().signInWithRedirect(provider);
+                    } else {
+                        // Other errors - show error message
+                        console.error('Error:', error);
+                        document.getElementById('errorMessage').textContent = error.message || 'Authentication failed. Please try again.';
+                        document.getElementById('errorMessage').classList.remove('hidden');
+                        document.getElementById('loadingSpinner').classList.add('hidden');
+                        document.getElementById('googleSignInBtn').disabled = false;
+                    }
+                });
+            {% endif %}
+        });
+
+        // Check if user is already signed in with Firebase
+        // But only redirect if they're also logged in with Flask-Login
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                // User is signed in with Firebase, but need to verify Flask-Login session
+                // Check if user is authenticated with backend
+                fetch('/auth/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.authenticated) {
+                        // User is authenticated with both Firebase and Flask-Login
+                        window.location.href = '/';
+                    }
+                    // If not authenticated with Flask-Login, stay on login page
+                    // The user needs to complete the authentication flow
+                })
+                .catch(error => {
+                    console.log('Not authenticated with Flask-Login, staying on login page');
+                });
+            }
+        });
+    </script>
 </body>
 </html> 

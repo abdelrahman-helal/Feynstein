@@ -1,11 +1,15 @@
 flask==3.1.1
 python-dotenv==1.1.0
 flask-login==0.6.3
-flask-sqlalchemy==3.1.1
 werkzeug==3.0.1
 langchain==0.3.25
 langchain-core==0.3.0
 langchain-google-genai==2.0.0
+langchain-groq
 langchain-pinecone
 pinecone
 requests
+firebase-admin
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
